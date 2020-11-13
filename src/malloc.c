@@ -1,3 +1,7 @@
+/* Alisha Kunwar 
+   1001668106
+   Heap-Assignment */
+
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
@@ -196,7 +200,6 @@ struct _block *growHeap(struct _block *last, size_t size)
    if (last)
    {
       last->next = curr;
-      // num_blocks++;
    }
 
    /* Update _block metadata */
@@ -222,7 +225,6 @@ struct _block *growHeap(struct _block *last, size_t size)
 void *malloc(size_t size)
 {
 
-   num_mallocs++;
    if (atexit_registered == 0)
    {
       atexit_registered = 1;
@@ -245,7 +247,7 @@ void *malloc(size_t size)
 
    if (next != NULL)
    {
-
+      num_reuses++;
       if ((next->size - size) > size)
       {
          int storesize = next->size;
@@ -268,7 +270,7 @@ void *malloc(size_t size)
       next = growHeap(last, size);
       num_grows++;
       max_heap += size;
-      num_blocks++;
+      num_blocks++; //number of block increases as heap grows
    }
 
    else
@@ -284,6 +286,7 @@ void *malloc(size_t size)
 
    /* Mark _block as in use */
    next->free = false;
+   num_mallocs++;
 
    /* Return data address associated with _block */
    return BLOCK_DATA(next);
@@ -333,6 +336,7 @@ void free(void *ptr)
 
 #endif
    }
+
    num_blocks--;
    num_reuses++;
 }

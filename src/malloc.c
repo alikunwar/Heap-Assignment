@@ -1,3 +1,4 @@
+#include <string.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -195,7 +196,7 @@ struct _block *growHeap(struct _block *last, size_t size)
    if (last)
    {
       last->next = curr;
-      num_blocks++;
+      // num_blocks++;
    }
 
    /* Update _block metadata */
@@ -240,26 +241,32 @@ void *malloc(size_t size)
    struct _block *last = heapList;
    struct _block *next = findFreeBlock(&last, size);
 
-   if (next->next != NULL)
+   if (next != NULL)
    {
-      if ((next ->size - size) > size)
+      num_reuses++;
+
+      if ((next->size - size) > size)
       {
          int storesize = next->size;
          struct _block *old_next = next->next;
-         uint8_t *newptr = (uint8_t *)next - next->size;
+         uint8_t *newptr = (uint8_t *)next + next->size + sizeof(struct _block);
          next->next = (struct _block *)(newptr);
          next->size = size;
-         next->next->size = storesize - size;
+         int diff = storesize - size;
+         next->next->size = diff;
          next->next->next = old_next;
-         next->next->free = 1;
+         next->next->free = true;
       }
+      num_splits++;
+      num_blocks++;
    }
 
    /* Could not find free _block, so grow heap */
    if (next == NULL)
    {
       next = growHeap(last, size);
-      num_grows++; 
+      num_grows++;
+      max_heap += size;
    }
 
    /* Could not find free _block or grow heap, so just return NULL */
@@ -300,8 +307,39 @@ void free(void *ptr)
 
    /* TODO: Coalesce free _blocks if needed */
 
-   // curr->size = curr->size + size;
-   // curr->next = curr->next +
+      struct _block *store = heapList;
+
+      while (store)
+      {
+         if (store->free)
+         {
+            if ((store->next!=NULL) && store->next->free)
+            {
+               store->size = store->size + sizeof(struct _block) + store->next->size;
+               store->next = store->next->next;
+            }
+         }
+    else
+     {
+      store=store->next;
+      continue;
+}
+   }
+num_blocks--;
+num_coalesces++;
 }
 
-/* vim: set expandtab sts=3 sw=3 ts=6 ft=cpp: --------------------------------*/
+void *calloc(size_t nmemb, size_t size)
+{
+   void *ptr = malloc(nmemb * size);
+   memset(ptr, 0, nmemb * size);
+   return ptr;
+}
+
+//takes the pointer and the new size
+void *realloc(void *ptr, size_t size)
+{
+   void *newptr = malloc(size);
+   memcpy(newptr, ptr, size);
+   return newptr; //returns pointer with all the data copied over
+}

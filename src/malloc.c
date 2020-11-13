@@ -222,6 +222,7 @@ struct _block *growHeap(struct _block *last, size_t size)
 void *malloc(size_t size)
 {
 
+   num_mallocs++;
    if (atexit_registered == 0)
    {
       atexit_registered = 1;
@@ -240,10 +241,10 @@ void *malloc(size_t size)
    /* Look for free _block */
    struct _block *last = heapList;
    struct _block *next = findFreeBlock(&last, size);
+   num_requested += size;
 
    if (next != NULL)
    {
-      num_reuses++;
 
       if ((next->size - size) > size)
       {
@@ -267,6 +268,12 @@ void *malloc(size_t size)
       next = growHeap(last, size);
       num_grows++;
       max_heap += size;
+      num_blocks++;
+   }
+
+   else
+   {
+      num_reuses++;
    }
 
    /* Could not find free _block or grow heap, so just return NULL */
@@ -307,30 +314,33 @@ void free(void *ptr)
 
    /* TODO: Coalesce free _blocks if needed */
 
-      struct _block *store = heapList;
+   struct _block *store = heapList;
 
-      while (store)
+   while (store)
+   {
+      if (store != NULL && store->free)
       {
-         if (store->free)
+         if ((store->next != NULL) && store->next->free)
          {
-            if ((store->next!=NULL) && store->next->free)
-            {
-               store->size = store->size + sizeof(struct _block) + store->next->size;
-               store->next = store->next->next;
-            }
+            store->size = store->size + sizeof(struct _block) + store->next->size;
+            store->next = store->next->next;
+            num_coalesces++;
          }
-    else
-     {
-      store=store->next;
-      continue;
-}
+      }
+      store = store->next;
+
+#if 0
+
+#endif
    }
-num_blocks--;
-num_coalesces++;
+   num_blocks--;
+   num_reuses++;
 }
 
 void *calloc(size_t nmemb, size_t size)
 {
+   //allocates the requested memory set, , nmemb gets allocated
+   //set allocated memory to 0
    void *ptr = malloc(nmemb * size);
    memset(ptr, 0, nmemb * size);
    return ptr;

@@ -88,17 +88,23 @@ struct _block *findFreeBlock(struct _block **last, size_t size)
 #endif
 
 #if defined BEST && BEST == 0
+   /* Best fit */
    struct _block *storeptr = NULL;
    int diffsize;
-   int maxsize = 50000;
+   int maxsize = INT_MAX;
    while (curr)
    {
       *last = curr;
+      //Checking if the current pointed block is free
       if (curr->free)
       {
+         //if the block is free and greater than size requested
          if (curr->size >= size)
          {
             diffsize = curr->size - size;
+            //finding a enough free block to satisfy request
+            //if current free block is smaller than saved block
+            //storing the current pointer to storeptr
             if (diffsize <= maxsize)
             {
                maxsize = diffsize;
@@ -109,6 +115,7 @@ struct _block *findFreeBlock(struct _block **last, size_t size)
       curr = curr->next;
    }
 
+   //restoring the data in curr pointer
    if (storeptr)
    {
       curr = storeptr;
@@ -117,17 +124,22 @@ struct _block *findFreeBlock(struct _block **last, size_t size)
 #endif
 
 #if defined WORST && WORST == 0
+   /* Worst fit */
    struct _block *storeptr = NULL;
    int diffsize;
-   int minsize = 0;
+   int minsize = INT_MIN;
    while (curr)
    {
       *last = curr;
       if (curr->free)
       {
+         //Checking if the current pointed block is free
          if (curr->size >= size)
          {
+            //finding a enough free block to satisfy request
             diffsize = curr->size - size;
+            // if current free block is larger than saved block
+            //storing the current pointer to storeptr
             if (diffsize > minsize)
             {
                minsize = diffsize;
@@ -139,6 +151,7 @@ struct _block *findFreeBlock(struct _block **last, size_t size)
       curr = curr->next;
    }
 
+   //restoring the data in curr pointer
    if (storeptr)
    {
       curr = storeptr;
@@ -146,13 +159,16 @@ struct _block *findFreeBlock(struct _block **last, size_t size)
 #endif
 
 #if defined NEXT && NEXT == 0
+   /* Next fit */
+   *last = curr;
 
+   //checking from last used block
    if (*last)
    {
       curr = *last;
       curr = curr->next;
    }
-
+   // if not setting to beginning to end, as first fit
    while (curr && !(curr->free && curr->size >= size))
    {
       *last = curr;
@@ -240,37 +256,54 @@ void *malloc(size_t size)
       return NULL;
    }
 
+   //counting the number of times the user calls malloc successfully
+   num_mallocs++;
+
    /* Look for free _block */
    struct _block *last = heapList;
    struct _block *next = findFreeBlock(&last, size);
+   //counting the total amount of memory requested
    num_requested += size;
 
    if (next != NULL)
    {
-      num_reuses++;
+      //finding if free block is larger than the requested size
+      // if the block is free and larger then splitting the block
       if ((next->size - size) > size)
       {
+         //saving old size of a block to storesize
          int storesize = next->size;
+         //saving the pointer
          struct _block *old_next = next->next;
+         // casting gives the total size of the block
          uint8_t *newptr = (uint8_t *)next + next->size + sizeof(struct _block);
+         // the pointer points to next block
          next->next = (struct _block *)(newptr);
          next->size = size;
-         int diff = storesize - size;
+         int diff = storesize - size - sizeof(struct _block);
          next->next->size = diff;
          next->next->next = old_next;
          next->next->free = true;
+
+         //count the number of splits
+         //count the number of blocks after splitting
+         num_splits++;
+         num_blocks++;
       }
-      num_splits++;
-      num_blocks++;
    }
 
    /* Could not find free _block, so grow heap */
    if (next == NULL)
    {
       next = growHeap(last, size);
+      //counting the number of times for requesting a new block
       num_grows++;
+
+      //counting the number of times for requesting a new block
       max_heap += size;
-      num_blocks++; //number of block increases as heap grows
+
+      //number of block increases as heap grows
+      num_blocks++;
    }
 
    else
@@ -286,10 +319,26 @@ void *malloc(size_t size)
 
    /* Mark _block as in use */
    next->free = false;
-   num_mallocs++;
 
    /* Return data address associated with _block */
    return BLOCK_DATA(next);
+}
+
+void *calloc(size_t nmemb, size_t size)
+{
+   //allocates the requested memory, nmemb gets allocated
+   //set allocated memory to 0
+   void *ptr = malloc(nmemb * size);
+   memset(ptr, 0, nmemb * size);
+   return ptr;
+}
+
+//takes the pointer and the new size
+void *realloc(void *ptr, size_t size)
+{
+   void *newptr = malloc(size);
+   memcpy(newptr, ptr, size);
+   return newptr; //returns pointer with all the data copied over
 }
 
 /*
@@ -313,7 +362,6 @@ void free(void *ptr)
    struct _block *curr = BLOCK_HEADER(ptr);
    assert(curr->free == 0);
    curr->free = true;
-   num_frees++;
 
    /* TODO: Coalesce free _blocks if needed */
 
@@ -321,13 +369,18 @@ void free(void *ptr)
 
    while (store)
    {
+      // checking if the current block is free
       if (store != NULL && store->free)
       {
          if ((store->next != NULL) && store->next->free)
          {
+            //combining two adjacent blocks if they are free
             store->size = store->size + sizeof(struct _block) + store->next->size;
             store->next = store->next->next;
+            //counting the number when combining of block takes place
+            //decreasing the number of blocks after each combination
             num_coalesces++;
+            num_blocks--;
          }
       }
       store = store->next;
@@ -337,23 +390,8 @@ void free(void *ptr)
 #endif
    }
 
-   num_blocks--;
+   //counting the number of times the user calls free successfully
+   num_frees++;
+   //counting the number of times the existing block is reused
    num_reuses++;
-}
-
-void *calloc(size_t nmemb, size_t size)
-{
-   //allocates the requested memory set, , nmemb gets allocated
-   //set allocated memory to 0
-   void *ptr = malloc(nmemb * size);
-   memset(ptr, 0, nmemb * size);
-   return ptr;
-}
-
-//takes the pointer and the new size
-void *realloc(void *ptr, size_t size)
-{
-   void *newptr = malloc(size);
-   memcpy(newptr, ptr, size);
-   return newptr; //returns pointer with all the data copied over
 }

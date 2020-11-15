@@ -306,15 +306,17 @@ void *malloc(size_t size)
       num_blocks++;
    }
 
-   else
-   {
-      num_reuses++;
-   }
 
    /* Could not find free _block or grow heap, so just return NULL */
    if (next == NULL)
    {
       return NULL;
+   }
+   
+     else
+   {
+      //counting the number of times the existing block is reused
+      num_reuses++;
    }
 
    /* Mark _block as in use */
@@ -392,6 +394,6 @@ void free(void *ptr)
 
    //counting the number of times the user calls free successfully
    num_frees++;
-   //counting the number of times the existing block is reused
-   num_reuses++;
+   
+  
 }
